@@ -1,0 +1,311 @@
+#!/bin/sh
+ip=`ip addr |grep inet |egrep -v "inet6|127.0.0.1" |awk '{print $2}' |awk -F "/" '{print $1}'`
+printf "
+#######################################################################
+#                 欢迎使用Zabbix一键部署脚本                        #
+#             避免软件包产生冲突建议使用纯净的操作系统进行安装！      #
+#######################################################################
+"
+ 
+while :; do echo
+    read -p "c(centos) or u(ubuntu): " system_type
+    [ -n "$system_type" ] && break
+done
+if [ $system_type = 'c' ];then
+release=`cat /etc/redhat-release | awk '{print $4}' | awk -F '.' '{print $1}'`
+echo "#######################################################################"
+echo "#                                                                     #"
+echo "#                  正在关闭SElinux策略及防火墙 请稍等~                #"
+echo "#                                                                     #"
+echo "#######################################################################"
+sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
+setenforce 0
+systemctl stop firewalld  && systemctl disable firewalld
+if [ $release = '7' ];then
+echo "系统版本为CentOS 7，只能安装Zabbix 5.0"
+cat <<EOF > /etc/yum.repos.d/zabbix.repo
+[zabbix]
+name=Zabbix Official Repository - \$basearch
+baseurl=https://mirror.tuna.tsinghua.edu.cn/zabbix/zabbix/5.0/rhel/7/\$basearch/
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-ZABBIX-A14FE591
+ 
+[zabbix-frontend]
+name=Zabbix Official Repository frontend - $basearch
+baseurl=https://mirror.tuna.tsinghua.edu.cn/zabbix/zabbix/5.0/rhel/7/\$basearch/frontend
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-ZABBIX-A14FE591
+ 
+[zabbix-non-supported]
+name=Zabbix Official Repository non-supported - \$basearch
+baseurl=https://mirror.tuna.tsinghua.edu.cn/zabbix/non-supported/rhel/7/\$basearch/
+enabled=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-ZABBIX
+gpgcheck=1
+EOF
+echo "添加源gpgkey"
+curl https://mirror.tuna.tsinghua.edu.cn/zabbix/RPM-GPG-KEY-ZABBIX-A14FE591 \
+-o /etc/pki/rpm-gpg/RPM-GPG-KEY-ZABBIX-A14FE591
+curl https://mirror.tuna.tsinghua.edu.cn/zabbix/RPM-GPG-KEY-ZABBIX \
+-o /etc/pki/rpm-gpg/RPM-GPG-KEY-ZABBIX
+curl https://mirror.tuna.tsinghua.edu.cn/zabbix/RPM-GPG-KEY-ZABBIX-A14FE591 \
+-o /etc/pki/rpm-gpg/RPM-GPG-KEY-ZABBIX-A14FE591
+curl https://mirror.tuna.tsinghua.edu.cn/zabbix/RPM-GPG-KEY-ZABBIX \
+-o /etc/pki/rpm-gpg/RPM-GPG-KEY-ZABBIX
+yum -y install mariadb-server centos-release-scl epel-release
+yum -y install zabbix-server-mysql zabbix-web-mysql zabbix-web-mysql-scl zabbix-apache-conf-scl zabbix-agent vim
+elif [ $release = '8' ];then
+while :; do echo
+    read -p "zabbix版本选择（5.0 or 5.2 or 5.4) " zbx_v
+    [ -n "$zbx_v" ] && break
+done
+cat <<EOF > /etc/yum.repos.d/zabbix.repo
+[zabbix]
+name=Zabbix Official Repository - \$basearch
+baseurl=https://mirror.tuna.tsinghua.edu.cn/zabbix/zabbix/$zbx_v/rhel/8/\$basearch/
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-ZABBIX-A14FE591
+[zabbix-non-supported]
+name=Zabbix Official Repository non-supported - \$basearch
+baseurl=https://mirror.tuna.tsinghua.edu.cn/zabbix/non-supported/rhel/8/\$basearch/
+enabled=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-ZABBIX
+gpgcheck=1
+EOF
+echo "添加源gpgkey"
+curl https://mirror.tuna.tsinghua.edu.cn/zabbix/RPM-GPG-KEY-ZABBIX-A14FE591 \
+-o /etc/pki/rpm-gpg/RPM-GPG-KEY-ZABBIX-A14FE591
+curl https://mirror.tuna.tsinghua.edu.cn/zabbix/RPM-GPG-KEY-ZABBIX \
+-o /etc/pki/rpm-gpg/RPM-GPG-KEY-ZABBIX
+curl https://mirror.tuna.tsinghua.edu.cn/zabbix/RPM-GPG-KEY-ZABBIX-A14FE591 \
+-o /etc/pki/rpm-gpg/RPM-GPG-KEY-ZABBIX-A14FE591
+curl https://mirror.tuna.tsinghua.edu.cn/zabbix/RPM-GPG-KEY-ZABBIX \
+-o /etc/pki/rpm-gpg/RPM-GPG-KEY-ZABBIX
+dnf -y install mariadb-server zabbix-server-mysql zabbix-web-mysql zabbix-apache-conf zabbix-agent vim 
+fi
+elif [ $system_type = 'u' ];then
+release=`cat /etc/issue | grep Ubuntu | awk '{print $2}' | awk -F '.' '{print $1"."$2}'`
+while :; do echo
+    read -p "zabbix版本选择（5.0 or 5.2 or 5.4) " zbx_v
+    [ -n "$zbx_v" ] && break
+    done
+if [ $zbx_v = '5.0' ];then
+if [ $release = '18.04' ];then
+wget https://mirror.tuna.tsinghua.edu.cn/zabbix/zabbix/5.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_5.0-1+bionic_all.deb
+dpkg -i zabbix-release_5.0-1+bionic_all.deb
+apt update
+elif [ $release = '20.04'];then
+wget https://mirror.tuna.tsinghua.edu.cn/zabbix/zabbix/5.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_5.0-1+focal_all.deb
+dpkg -i zabbix-release_5.0-1+focal_all.deb
+apt update
+fi
+else
+wget https://mirror.tuna.tsinghua.edu.cn/zabbix/zabbix/$zbx_v/ubuntu/pool/main/z/zabbix-release/zabbix-release_$zbx_v-1+ubuntu"$release"_all.deb
+dpkg -i zabbix-release_"$zbx_v"-1+ubuntu"$release"_all.deb
+apt update
+fi
+apt -y install  zabbix-server-mysql  zabbix-frontend-php zabbix-apache-conf zabbix-agent mariadb-server
+fi
+ 
+echo "#######################################################################"
+echo "#                                                                     #"
+echo "#                 正在启动及配置Mariadb数据库 请稍等~                 #"
+echo "#                                                                     #"
+echo "#######################################################################"
+systemctl start mariadb && systemctl enable mariadb
+while :; do echo
+    read -p "设置Mysql数据库root密码（建议使用字母+数字）: " Database_Password 
+    [ -n "$Database_Password" ] && break
+done
+ 
+mysqladmin -u root password "$Database_Password"
+echo "create database  zabbix default charset utf8 COLLATE utf8_bin;" | mysql -uroot -p$Database_Password
+echo "grant all privileges on zabbix.* to zabbix@'localhost' identified by '$Database_Password';" | mysql -uroot -p$Database_Password
+echo "flush privileges;" | mysql -uroot -p$Database_Password
+echo "#######################################################################"
+echo "#                                                                     #"
+echo "#                 正在导入zabbix数据库架构文件，请稍等~               #"
+echo "#                                                                     #"
+echo "#######################################################################"
+release=`zabbix_server -V | grep zabbix_server | awk '{print $3}' | awk -F '.' '{print $1"."$2}'`
+if [ $release = '5.0' ];then
+zcat /usr/share/doc/zabbix-server-mysql*/create.sql.gz | mysql -uzabbix -p$Database_Password zabbix
+elif [ $release = '5.2' ];then
+zcat /usr/share/doc/zabbix-server-mysql*/create.sql.gz | mysql -uzabbix -p$Database_Password zabbix
+elif [ $release = '5.4' ];then
+if [ $system_type = 'c' ];then
+dnf -y install zabbix-sql-scripts
+elif [ $system_type = 'u' ];then
+apt -y install zabbix-sql-scripts
+fi
+zcat /usr/share/doc/zabbix-sql-scripts/mysql/create.sql.gz | mysql -uzabbix -p$Database_Password zabbix
+fi
+echo "#######################################################################"
+echo "#                                                                     #"
+echo "#                 正在修改Zabbix配置文件，请稍等~                     #"
+echo "#                                                                     #"
+echo "#######################################################################"
+sed -i 's/# DBPassword=/DBPassword='$Database_Password'/' /etc/zabbix/zabbix_server.conf
+if [ $system_type = 'c' ];then
+release=`cat /etc/redhat-release | awk '{print $4}' | awk -F '.' '{print $1}'`
+ if [ $release = '7' ];then
+ echo "php_value[date.timezone] = Asia/Shanghai" >> /etc/opt/rh/rh-php72/php-fpm.d/zabbix.conf
+ systemctl restart zabbix-server zabbix-agent httpd rh-php72-php-fpm
+ systemctl enable zabbix-server zabbix-agent httpd rh-php72-php-fpm
+ elif [ $release = '8' ];then
+ if [ $zbx_v = '5.0' ];then
+ echo "php_value[date.timezone] = Asia/Shanghai" >> /etc/php-fpm.d/zabbix.conf
+elif [ $zbx_v = '5.2' ];then
+echo "5.2以上php无需调整"
+elif [ $zbx_v = '5.4' ];then
+echo "5.2以上php无需调整"
+fi
+ systemctl restart zabbix-server zabbix-agent httpd php-fpm
+ systemctl enable zabbix-server zabbix-agent httpd php-fpm
+ fi
+elif [ $system_type = 'u' ];then
+release=`zabbix_server -V | grep zabbix_server | awk '{print $3}' | awk -F '.' '{print $1"."$2}'`
+ if [ $release = '5.0' ];then
+ sed -i 's/\#\ php_value date.timezone Europe\/\Riga/php_value date.timezone Asia\/\Shanghai/g' /etc/zabbix/apache.conf
+ systemctl restart zabbix-server zabbix-agent apache2 mariadb
+ systemctl enable zabbix-server zabbix-agent apache2 mariadb
+ elif [ $release = '5.2' ];then
+ systemctl restart zabbix-server zabbix-agent apache2 mariadb
+ systemctl enable zabbix-server zabbix-agent apache2 mariadb
+ elif [ $release = '5.4' ];then
+ systemctl restart zabbix-server zabbix-agent apache2 mariadb
+ systemctl enable zabbix-server zabbix-agent apache2 mariadb
+fi
+fi
+echo "开始配置前端"
+while :; do echo
+    read -p "设置前端名称: " front_name
+    [ -n "$front_name" ] && break
+done
+while :; do echo
+    read -p "数据库名称: " db_name
+    [ -n "$db_name" ] && break
+done
+while :; do echo
+    read -p "数据库用户: " db_user
+    [ -n "$db_user" ] && break
+done
+while :; do echo
+    read -p "数据库密码: " db_passwd
+    [ -n "$db_passwd" ] && break
+done
+if [ $zbx_v = '5.0' ];then
+cat <<EOF > /etc/zabbix/web/zabbix.conf.php
+<?php
+// Zabbix GUI configuration file.
+ 
+\$DB['TYPE']                = 'MYSQL';
+\$DB['SERVER']          = 'localhost';
+\$DB['PORT']                = '0';
+\$DB['DATABASE']            = '$db_name';
+\$DB['USER']                = '$db_user';
+\$DB['PASSWORD']            = '$db_passwd';
+ 
+// Schema name. Used for PostgreSQL.
+\$DB['SCHEMA']          = '';
+ 
+// Used for TLS connection.
+\$DB['ENCRYPTION']      = false;
+\$DB['KEY_FILE']            = '';
+\$DB['CERT_FILE']       = '';
+\$DB['CA_FILE']         = '';
+\$DB['VERIFY_HOST']     = false;
+\$DB['CIPHER_LIST']     = '';
+ 
+ 
+// Use IEEE754 compatible value range for 64-bit Numeric (float) history values.
+// This option is enabled by default for new Zabbix installations.
+// For upgraded installations, please read database upgrade notes before enabling this option.
+\$DB['DOUBLE_IEEE754']  = true;
+ 
+\$ZBX_SERVER                = 'localhost';
+\$ZBX_SERVER_PORT       = '10051';
+\$ZBX_SERVER_NAME       = '$front_name';
+ 
+\$IMAGE_FORMAT_DEFAULT  = IMAGE_FORMAT_PNG;
+ 
+// Uncomment this block only if you are using Elasticsearch.
+// Elasticsearch url (can be string if same url is used for all types).
+//\$HISTORY['url'] = [
+//  'uint' => 'http://localhost:9200',
+//  'text' => 'http://localhost:9200'
+//];
+// Value types stored in Elasticsearch.
+//\$HISTORY['types'] = ['uint', 'text'];
+ 
+// Used for SAML authentication.
+// Uncomment to override the default paths to SP private key, SP and IdP X.509 certificates, and to set extra settings.
+//\$SSO['SP_KEY']           = 'conf/certs/sp.key';
+//\$SSO['SP_CERT']          = 'conf/certs/sp.crt';
+//\$SSO['IDP_CERT']     = 'conf/certs/idp.crt';
+//\$SSO['SETTINGS']     = [];
+EOF
+else
+cat <<EOF > /etc/zabbix/web/zabbix.conf.php
+<?php
+// Zabbix GUI configuration file.
+ 
+\$DB['TYPE']                = 'MYSQL';
+\$DB['SERVER']          = 'localhost';
+\$DB['PORT']                = '0';
+\$DB['DATABASE']            = '$db_name';
+\$DB['USER']                = '$db_user';
+\$DB['PASSWORD']            = '$db_passwd';
+ 
+// Schema name. Used for PostgreSQL.
+\$DB['SCHEMA']          = '';
+ 
+// Used for TLS connection.
+\$DB['ENCRYPTION']      = false;
+\$DB['KEY_FILE']            = '';
+\$DB['CERT_FILE']       = '';
+\$DB['CA_FILE']         = '';
+\$DB['VERIFY_HOST']     = false;
+\$DB['CIPHER_LIST']     = '';
+ 
+// Vault configuration. Used if database credentials are stored in Vault secrets manager.
+\$DB['VAULT_URL']       = '';
+\$DB['VAULT_DB_PATH']   = '';
+\$DB['VAULT_TOKEN']     = '';
+ 
+// Use IEEE754 compatible value range for 64-bit Numeric (float) history values.
+// This option is enabled by default for new Zabbix installations.
+// For upgraded installations, please read database upgrade notes before enabling this option.
+\$DB['DOUBLE_IEEE754']  = true;
+ 
+\$ZBX_SERVER                = 'localhost';
+\$ZBX_SERVER_PORT       = '10051';
+\$ZBX_SERVER_NAME       = '$front_name';
+ 
+\$IMAGE_FORMAT_DEFAULT  = IMAGE_FORMAT_PNG;
+ 
+// Uncomment this block only if you are using Elasticsearch.
+// Elasticsearch url (can be string if same url is used for all types).
+//\$HISTORY['url'] = [
+//  'uint' => 'http://localhost:9200',
+//  'text' => 'http://localhost:9200'
+//];
+// Value types stored in Elasticsearch.
+//\$HISTORY['types'] = ['uint', 'text'];
+ 
+// Used for SAML authentication.
+// Uncomment to override the default paths to SP private key, SP and IdP X.509 certificates, and to set extra settings.
+//\$SSO['SP_KEY']           = 'conf/certs/sp.key';
+//\$SSO['SP_CERT']          = 'conf/certs/sp.crt';
+//\$SSO['IDP_CERT']     = 'conf/certs/idp.crt';
+//\$SSO['SETTINGS']     = [];
+EOF
+fi
+echo "#######################################################################"
+echo "#                 安装已经完成 请移步浏览器           "
+echo "#                 登录地址为http://$ip/zabbix                         "
+echo "#                 数据库密码为$Database_Password，尽情享用吧！        "
+echo "#######################################################################"
